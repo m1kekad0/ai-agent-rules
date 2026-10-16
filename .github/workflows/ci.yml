@@ -1,0 +1,41 @@
+name: documents
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  documents:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check documents
+        shell: bash
+        run: |
+          git diff --check
+          python3 - <<'PY'
+          import pathlib
+          import re
+          from urllib.parse import urlsplit
+
+          required = ['README.md', 'AGENTS.md', 'examples/project-AGENTS.md', 'examples/human-handoff.md', 'MIGRATION.md', 'LICENSE', '.github/workflows/ci.yml']
+          for name in required:
+              path = pathlib.Path(name)
+              content = path.read_text()
+              assert content.strip(), f'Empty file: {name}'
+              assert content.endswith('\n'), f'Missing final newline: {name}'
+              assert all(line == line.rstrip() for line in content.splitlines()), f'Trailing whitespace: {name}'
+              if path.suffix == '.md':
+                  for target in re.findall(r'\]\(([^)]+)\)', content):
+                      url = urlsplit(target)
+                      # Only handoff evidence may use HTTPS; never fetch URLs.
+                      if name == 'examples/human-handoff.md' and target.lower().startswith('https://'):
+                          assert url.hostname and not re.search(r'[\s\\]', target), f'Invalid HTTPS link: {name}: {target}'
+                          continue
+                      assert not url.scheme and not target.startswith('//') and '://' not in target, f'Unexpected network link: {name}: {target}'
+                      assert (path.parent / target.split('#')[0]).is_file(), f'Broken link: {name}: {target}'
+          print('7 files: content, whitespace, and Markdown links OK')
+          PY
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - name: Test check-pin script
+        run: node --test tests/check-pin.test.mjs
