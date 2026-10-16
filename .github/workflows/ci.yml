@@ -7,6 +7,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check shared AGENTS.md size
+        shell: bash
+        run: |
+          bytes=$(wc -c < AGENTS.md)
+          echo "AGENTS.md: ${bytes} bytes (limit: 12288)"
+          test "$bytes" -le 12288
       - name: Check documents
         shell: bash
         run: |
